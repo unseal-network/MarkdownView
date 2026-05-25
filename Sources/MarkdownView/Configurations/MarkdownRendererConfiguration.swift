@@ -22,6 +22,7 @@ struct MarkdownRendererConfiguration: Equatable, AllowingModifyThroughKeyPath, S
     
     var allowedImageRenderers: Set<String> = ["https", "http"]
     var allowedBlockDirectiveRenderers: Set<String> = []
+    var isStreaming: Bool = false
 }
 
 // MARK: - SwiftUI Environment
