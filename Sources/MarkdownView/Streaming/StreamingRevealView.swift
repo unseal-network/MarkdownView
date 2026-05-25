@@ -15,7 +15,7 @@ struct StreamingRevealView: View {
     private let charsPerSecond: Double = 60
     private let fadeDuration: Double = 0.15
 
-    @State private var animating: Bool = true
+    @State private var animating: Bool = false
 
     private var newCharCount: Int {
         max(0, attributedText.characters.count - newCharStart)
@@ -56,9 +56,17 @@ struct StreamingRevealView: View {
             guard idx < result.endIndex else { break }
             let nextIdx = result.index(idx, offsetByCharacters: 1)
             let charRevealTime = Double(i) / charsPerSecond
+
+            if elapsed < charRevealTime {
+                // Wave hasn't reached here — all remaining chars transparent
+                result[idx...].foregroundColor = Color.primary.opacity(0)
+                break
+            }
+
             let alpha = max(0.0, min(1.0, (elapsed - charRevealTime) / fadeDuration))
             if alpha < 1.0 {
-                result[idx..<nextIdx].foregroundColor = Color.primary.opacity(alpha)
+                let existingColor = result[idx..<nextIdx].foregroundColor ?? Color.primary
+                result[idx..<nextIdx].foregroundColor = existingColor.opacity(alpha)
             }
             idx = nextIdx
         }
