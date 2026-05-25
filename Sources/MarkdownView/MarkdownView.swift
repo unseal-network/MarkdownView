@@ -41,7 +41,9 @@ public struct MarkdownView: View {
     
     @ViewBuilder
     private var _renderedBody: some View {
-        if configuration.math.shouldRender {
+        if configuration.isStreaming {
+            StreamingMarkdownView(content: content, configuration: configuration)
+        } else if configuration.math.shouldRender {
             MathFirstMarkdownViewRenderer()
                 .makeBody(content: content, configuration: configuration)
         } else {
