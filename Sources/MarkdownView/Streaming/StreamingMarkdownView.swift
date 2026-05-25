@@ -34,6 +34,7 @@ struct StreamingMarkdownView: View {
                     .makeBody(content: content, configuration: nonStreamingConfiguration)
             }
         }
+        .animation(.none, value: attributedString == nil)
         .environment(\.markdownRendererConfiguration, configuration)
         .task(id: content) {
             updateContent()
@@ -49,14 +50,19 @@ struct StreamingMarkdownView: View {
         var visitor = CmarkNodeVisitor(configuration: configuration)
         let document = content.parse(options: parseOptions)
         guard let newAttrStr = visitor.visit(document).asAttributedString else {
-            // Mixed content: clear attributedString so body falls back to CmarkFirstMarkdownViewRenderer
+            // Mixed content — fall back to CmarkFirstMarkdownViewRenderer.
+            // Reset previousCharCount so the next pure-text render starts fresh.
             attributedString = nil
+            previousCharCount = 0
             return
         }
 
         let newCount = newAttrStr.characters.count
         let prevCount = attributedString?.characters.count ?? 0
 
+        // All three assignments are synchronous — SwiftUI batches them into one re-render.
+        // Do not introduce any `await` between them; revealStartDate and previousCharCount
+        // must be consistent with attributedString in the same render cycle.
         if newCount > prevCount, prevCount > 0 {
             // New characters arrived — start a reveal wave from where we left off
             previousCharCount = prevCount
