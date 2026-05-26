@@ -24,6 +24,7 @@ struct MarkdownRendererConfiguration: Equatable, AllowingModifyThroughKeyPath, S
     var allowedBlockDirectiveRenderers: Set<String> = []
     var isStreaming: Bool = false
     var streamingTextNodeMap: TextNodeMap? = nil
+    var streamingRevealedCount: Int = .max
     var streamingWindowSize: Int = 8
 }
 

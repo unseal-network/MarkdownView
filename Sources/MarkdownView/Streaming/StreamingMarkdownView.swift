@@ -1,35 +1,79 @@
 import SwiftUI
 import Markdown
 
-/// Stateful wrapper that drives the streaming render pipeline.
+/// Drives the streaming render pipeline with buffered character reveal.
 ///
-/// Computes a `TextNodeMap` from the AST and injects it into the
-/// configuration so `CmarkNodeVisitor.visitText` can apply a trailing
-/// gradient to the last few characters. Delegates actual rendering to
-/// `CmarkFirstMarkdownViewRenderer` — headings, code blocks, and all
-/// other block types render normally with the gradient baked in.
+/// Text arrives in chunks but is revealed character-by-character. On each
+/// content change `.task(id:)` advances `revealedCount` immediately (before
+/// any `await`) so that even rapid-fire cancellations make progress. A
+/// follow-up loop catches up if there is a large backlog.
 @MainActor
 struct StreamingMarkdownView: View {
     let content: MarkdownContent
     let configuration: MarkdownRendererConfiguration
 
+    @State private var revealedCount: Int = 0
+    @State private var targetCount: Int = 0
     @State private var lastHapticCount: Int = 0
 
+    private let baseCharsPerSecond: Double = 40
+
     var body: some View {
+        let document = content.parse(options: parseOptions)
+        let textMap = TextNodeMap.build(from: document)
+        let config = streamingConfig(textMap: textMap)
+
         CmarkFirstMarkdownViewRenderer()
-            .makeBody(content: content, configuration: streamingConfiguration)
-            .environment(\.markdownRendererConfiguration, streamingConfiguration)
+            .makeBody(content: content, configuration: config)
+            .environment(\.markdownRendererConfiguration, config)
             .task(id: content) {
-                triggerHaptic()
+                await updateAndReveal()
             }
     }
 
-    private var streamingConfiguration: MarkdownRendererConfiguration {
-        let document = content.parse(options: parseOptions)
-        let textMap = TextNodeMap.build(from: document)
+    private func streamingConfig(textMap: TextNodeMap) -> MarkdownRendererConfiguration {
         var config = configuration
         config.streamingTextNodeMap = textMap
+        config.streamingRevealedCount = revealedCount
         return config
+    }
+
+    private func updateAndReveal() async {
+        let document = content.parse(options: parseOptions)
+        let total = TextNodeMap.build(from: document).totalVisibleChars
+
+        if targetCount == 0, total > 0 {
+            revealedCount = max(0, total - 1)
+        }
+        targetCount = total
+
+        // Advance BEFORE any await — survives rapid task cancellation
+        advanceReveal()
+        triggerHaptic()
+
+        // Catch up remaining backlog at ~60fps
+        while revealedCount < targetCount {
+            try? await Task.sleep(nanoseconds: 16_000_000)
+            guard !Task.isCancelled else { return }
+            advanceReveal()
+            triggerHaptic()
+        }
+    }
+
+    private func advanceReveal() {
+        let backlog = targetCount - revealedCount
+        guard backlog > 0 else { return }
+        let chars = max(1, backlog / 5)
+        revealedCount = min(targetCount, revealedCount + chars)
+    }
+
+    private func triggerHaptic() {
+        #if os(iOS)
+        if revealedCount - lastHapticCount >= 5 {
+            lastHapticCount = revealedCount
+            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7)
+        }
+        #endif
     }
 
     private var parseOptions: ParseOptions {
@@ -38,24 +82,5 @@ struct StreamingMarkdownView: View {
             opts.insert(.parseBlockDirectives)
         }
         return opts
-    }
-
-    private func triggerHaptic() {
-        #if os(iOS)
-        let charCount = content.parse(options: parseOptions)
-            .children.reduce(0) { $0 + countChars(in: $1) }
-        if charCount - lastHapticCount >= 3 {
-            lastHapticCount = charCount
-            UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.3)
-        }
-        #endif
-    }
-
-    private func countChars(in markup: any Markup) -> Int {
-        if let text = markup as? Markdown.Text { return text.plainText.count }
-        if markup is SoftBreak { return 1 }
-        if markup is LineBreak { return 1 }
-        if let code = markup as? InlineCode { return code.code.count }
-        return markup.children.reduce(0) { $0 + countChars(in: $1) }
     }
 }

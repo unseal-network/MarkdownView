@@ -26,9 +26,14 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
 
     func visitDocument(_ document: Document) -> MarkdownNodeView {
         var renderer = self
-        let nodeViews = document.children.map {
-            renderer.visit($0)
+        if configuration.isStreaming {
+            let nodeViews = document.children.map { child in
+                let view = renderer.visit(child)
+                return MarkdownNodeView { StreamingBlockWrapper(content: view) }
+            }
+            return MarkdownNodeView(nodeViews, layoutPolicy: .linebreak)
         }
+        let nodeViews = document.children.map { renderer.visit($0) }
         return MarkdownNodeView(nodeViews, layoutPolicy: .linebreak)
     }
     
@@ -250,23 +255,38 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
         applyStreamingGradient(to: AttributedString(text), globalOffset: globalOffset, map: map)
     }
 
+    /// Three-zone gradient based on `revealedCount`:
+    ///   • before `revealedCount - windowSize` → fully visible
+    ///   • `revealedCount - windowSize ..< revealedCount` → gradient (ease-in)
+    ///   • `>= revealedCount` → fully transparent (hidden)
     private func applyStreamingGradient(to attributed: AttributedString, globalOffset: Int, map: TextNodeMap) -> AttributedString {
-        let totalChars = map.totalVisibleChars
+        let revealedCount = configuration.streamingRevealedCount
         let windowSize = configuration.streamingWindowSize
-        let windowStart = totalChars - windowSize
+        let gradientStart = revealedCount - windowSize
 
+        let nodeStart = globalOffset
         let nodeEnd = globalOffset + attributed.characters.count - 1
-        guard nodeEnd >= windowStart else { return attributed }
+
+        // Entire node is before gradient → fully visible, skip
+        if nodeEnd < gradientStart { return attributed }
 
         var result = attributed
-        let loopStart = max(0, windowStart - globalOffset)
+        let loopStart = max(0, gradientStart - nodeStart)
         var idx = result.index(result.startIndex, offsetByCharacters: loopStart)
         for i in loopStart..<result.characters.count {
             guard idx < result.endIndex else { break }
             let nextIdx = result.index(idx, offsetByCharacters: 1)
-            let distFromEnd = totalChars - 1 - (globalOffset + i)
-            if distFromEnd >= 0, distFromEnd < windowSize {
-                let progress = Double(distFromEnd + 1) / Double(windowSize + 1)
+            let globalIdx = nodeStart + i
+
+            if globalIdx >= revealedCount {
+                // Hidden zone — set remaining chars transparent in bulk
+                result[idx...].foregroundColor = Color.primary.opacity(0)
+                break
+            }
+            // Gradient zone
+            let distFromReveal = revealedCount - 1 - globalIdx
+            if distFromReveal < windowSize {
+                let progress = Double(distFromReveal + 1) / Double(windowSize + 1)
                 let alpha = progress * progress
                 let existing = result[idx..<nextIdx].foregroundColor ?? Color.primary
                 result[idx..<nextIdx].foregroundColor = existing.opacity(alpha)
