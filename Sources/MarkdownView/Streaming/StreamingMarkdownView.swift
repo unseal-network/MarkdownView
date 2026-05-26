@@ -3,9 +3,10 @@ import Markdown
 
 /// Stateful wrapper that drives the streaming render pipeline.
 ///
-/// On each content change it renders via `CmarkNodeVisitor`, extracts the
-/// resulting `AttributedString`, computes how many characters are new, and
-/// hands the result to `StreamingRevealView`.
+/// Tracks the start of each streaming session (`sessionStartCharCount`,
+/// `sessionStartDate`). These are set once when the first new character arrives
+/// and held fixed for the rest of the session. `StreamingRevealView` uses them
+/// as the wave origin so the animation is continuous — not reset per character.
 ///
 /// For mixed content (code blocks, images, tables) where `CmarkNodeVisitor`
 /// returns an `AnyView` rather than an `AttributedString`, rendering falls back
@@ -16,16 +17,19 @@ struct StreamingMarkdownView: View {
     let configuration: MarkdownRendererConfiguration
 
     @State private var attributedString: AttributedString? = nil
-    @State private var previousCharCount: Int = 0
-    @State private var revealStartDate: Date = .now
+    // Session-level values — set once when the first new char arrives,
+    // held fixed so the animation wave is continuous across character updates.
+    @State private var sessionStartCharCount: Int = 0
+    @State private var sessionStartDate: Date = .now
+    @State private var sessionStarted: Bool = false
 
     var body: some View {
         Group {
             if let attrStr = attributedString {
                 StreamingRevealView(
                     attributedText: attrStr,
-                    newCharStart: previousCharCount,
-                    revealStartDate: revealStartDate
+                    newCharStart: sessionStartCharCount,
+                    revealStartDate: sessionStartDate
                 )
             } else {
                 // Fallback: mixed content or initial render before task fires.
@@ -50,33 +54,30 @@ struct StreamingMarkdownView: View {
         var visitor = CmarkNodeVisitor(configuration: configuration)
         let document = content.parse(options: parseOptions)
         guard let newAttrStr = visitor.visit(document).asAttributedString else {
-            // Mixed content — fall back to CmarkFirstMarkdownViewRenderer.
-            // Reset previousCharCount so the next pure-text render starts fresh.
             attributedString = nil
-            previousCharCount = 0
+            sessionStartCharCount = 0
+            sessionStarted = false
             return
         }
 
         let newCount = newAttrStr.characters.count
         let prevCount = attributedString?.characters.count ?? 0
 
-        // All three assignments are synchronous — SwiftUI batches them into one re-render.
-        // Do not introduce any `await` between them; revealStartDate and previousCharCount
-        // must be consistent with attributedString in the same render cycle.
-        if newCount > prevCount, prevCount > 0 {
-            // New characters arrived — start a reveal wave from where we left off
-            previousCharCount = prevCount
-            revealStartDate = .now
-        } else {
-            // First render or content replaced: show all chars as already revealed
-            previousCharCount = newCount
+        if newCount > prevCount, prevCount > 0, !sessionStarted {
+            // First new character of this streaming session — lock in the wave origin.
+            sessionStartCharCount = prevCount
+            sessionStartDate = .now
+            sessionStarted = true
+        } else if newCount <= prevCount || prevCount == 0 {
+            // First render or content fully replaced — no animation needed.
+            sessionStartCharCount = newCount
+            sessionStarted = false
         }
+        // Subsequent chars in the same session: don't touch sessionStart* values.
 
         attributedString = newAttrStr
     }
 
-    /// Configuration with isStreaming disabled, used for the mixed-content fallback
-    /// so CmarkFirstMarkdownViewRenderer's cache is not polluted with streaming renders.
     private var nonStreamingConfiguration: MarkdownRendererConfiguration {
         var c = configuration
         c.isStreaming = false

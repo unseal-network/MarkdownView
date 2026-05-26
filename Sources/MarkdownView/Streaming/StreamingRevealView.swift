@@ -1,21 +1,18 @@
 import SwiftUI
 
-/// Animates per-character fade-in for newly arrived streaming text.
+/// Animates per-character fade-in for streaming text using a continuous wave.
 ///
-/// Characters at indices `newCharStart..<attributedText.characters.count` fade in
-/// from transparent to opaque in a wave. Once the wave completes the view switches
-/// to a static `_MarkdownText` so `TimelineView` stops firing.
+/// The wave advances at `charsPerSecond` from `revealStartDate`. Characters at
+/// index `newCharStart + i` become visible when the wave reaches them, then fade
+/// in over `fadeDuration`. Because `revealStartDate` is fixed for the session,
+/// newly-appended characters are naturally picked up as `attributedText` grows.
 struct StreamingRevealView: View {
     let attributedText: AttributedString
-    /// Index of the first character that should animate in.
     let newCharStart: Int
-    /// Timestamp when this reveal wave started.
     let revealStartDate: Date
 
-    private let charsPerSecond: Double = 60
-    private let fadeDuration: Double = 0.15
-
-    @State private var animating: Bool = false
+    private let charsPerSecond: Double = 12
+    private let fadeDuration: Double = 1.0
 
     private var newCharCount: Int {
         max(0, attributedText.characters.count - newCharStart)
@@ -26,27 +23,21 @@ struct StreamingRevealView: View {
     }
 
     var body: some View {
-        Group {
-            if animating && newCharCount > 0 {
-                TimelineView(.animation) { context in
-                    let elapsed = context.date.timeIntervalSince(revealStartDate)
+        if newCharCount == 0 {
+            _MarkdownText(attributedText)
+        } else {
+            TimelineView(.animation) { context in
+                let elapsed = context.date.timeIntervalSince(revealStartDate)
+                if elapsed >= totalDuration {
+                    _MarkdownText(attributedText)
+                } else {
                     _MarkdownText(revealed(elapsed: elapsed))
                 }
-            } else {
-                _MarkdownText(attributedText)
             }
-        }
-        .task(id: attributedText) {
-            guard newCharCount > 0 else { return }
-            animating = true
-            let nanoseconds = UInt64((totalDuration + 0.05) * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: nanoseconds)
-            animating = false
         }
     }
 
-    /// Returns `attributedText` with in-progress characters set to a partial opacity.
-    /// Characters fully revealed (alpha == 1) retain their natural foreground color.
+    /// Returns `attributedText` with new characters at their current animation opacity.
     func revealed(elapsed: Double) -> AttributedString {
         var result = attributedText
         guard newCharStart < result.characters.count else { return result }
@@ -58,7 +49,6 @@ struct StreamingRevealView: View {
             let charRevealTime = Double(i) / charsPerSecond
 
             if elapsed < charRevealTime {
-                // Wave hasn't reached here — all remaining chars transparent
                 result[idx...].foregroundColor = Color.primary.opacity(0)
                 break
             }
