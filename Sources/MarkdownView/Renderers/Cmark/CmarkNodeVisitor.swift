@@ -48,11 +48,17 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
     
     func visitText(_ text: Markdown.Text) -> MarkdownNodeView {
         if configuration.math.shouldRender {
-            InlineMathOrText(text: text.plainText)
+            return InlineMathOrText(text: text.plainText)
                 .makeBody(configuration: configuration)
-        } else {
-            MarkdownNodeView(text.plainText)
         }
+        guard let map = configuration.streamingTextNodeMap,
+              let loc = text.range?.lowerBound,
+              let globalOffset = map.offsets["\(loc.line):\(loc.column)"] else {
+            return MarkdownNodeView(text.plainText)
+        }
+        return MarkdownNodeView(
+            applyStreamingGradient(to: text.plainText, globalOffset: globalOffset, map: map)
+        )
     }
     
     func visitBlockDirective(_ blockDirective: BlockDirective) -> MarkdownNodeView {
@@ -85,6 +91,11 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
         var attributedString = AttributedString(stringLiteral: inlineCode.code)
         attributedString.foregroundColor = configuration.inlineCodeTintColor
         attributedString.backgroundColor = configuration.inlineCodeTintColor.opacity(0.1)
+        if let map = configuration.streamingTextNodeMap,
+           let loc = inlineCode.range?.lowerBound,
+           let globalOffset = map.offsets["\(loc.line):\(loc.column)"] {
+            attributedString = applyStreamingGradient(to: attributedString, globalOffset: globalOffset, map: map)
+        }
         return MarkdownNodeView(attributedString)
     }
     
@@ -233,6 +244,38 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
         return MarkdownNodeView(attributedString)
     }
     
+    // MARK: - Streaming gradient
+
+    private func applyStreamingGradient(to text: String, globalOffset: Int, map: TextNodeMap) -> AttributedString {
+        applyStreamingGradient(to: AttributedString(text), globalOffset: globalOffset, map: map)
+    }
+
+    private func applyStreamingGradient(to attributed: AttributedString, globalOffset: Int, map: TextNodeMap) -> AttributedString {
+        let totalChars = map.totalVisibleChars
+        let windowSize = configuration.streamingWindowSize
+        let windowStart = totalChars - windowSize
+
+        let nodeEnd = globalOffset + attributed.characters.count - 1
+        guard nodeEnd >= windowStart else { return attributed }
+
+        var result = attributed
+        let loopStart = max(0, windowStart - globalOffset)
+        var idx = result.index(result.startIndex, offsetByCharacters: loopStart)
+        for i in loopStart..<result.characters.count {
+            guard idx < result.endIndex else { break }
+            let nextIdx = result.index(idx, offsetByCharacters: 1)
+            let distFromEnd = totalChars - 1 - (globalOffset + i)
+            if distFromEnd >= 0, distFromEnd < windowSize {
+                let progress = Double(distFromEnd + 1) / Double(windowSize + 1)
+                let alpha = progress * progress
+                let existing = result[idx..<nextIdx].foregroundColor ?? Color.primary
+                result[idx..<nextIdx].foregroundColor = existing.opacity(alpha)
+            }
+            idx = nextIdx
+        }
+        return result
+    }
+
     mutating func visitLink(_ link: Markdown.Link) -> MarkdownNodeView {
         guard let destination = link.destination,
               let url = URL(string: destination)

@@ -23,7 +23,8 @@ struct CmarkFirstMarkdownViewRenderer: MarkdownViewRenderer {
         content: MarkdownContent,
         configuration: MarkdownRendererConfiguration
     ) -> some View {
-        if let cached = CacheStorage.shared.withCacheIfAvailable(
+        if !configuration.isStreaming,
+           let cached = CacheStorage.shared.withCacheIfAvailable(
             content,
             type: Cache.self
         ), cached.configuration == configuration {
