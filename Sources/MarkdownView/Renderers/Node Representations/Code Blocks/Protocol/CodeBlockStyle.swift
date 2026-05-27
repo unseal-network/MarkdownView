@@ -27,9 +27,10 @@ public protocol CodeBlockStyle {
 }
 
 /// The properties of a code block.
-public struct CodeBlockStyleConfiguration: Hashable, Sendable, Codable {
+public struct CodeBlockStyleConfiguration: Hashable, Sendable {
     public var language: String?
     public var code: String
+    public var attributedCode: AttributedString?
 }
 
 // MARK: - Environment Value

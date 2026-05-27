@@ -28,6 +28,11 @@ struct TextNodeMap: Equatable, Sendable {
                     offsets["\(loc.line):\(loc.column)"] = offset
                 }
                 offset += code.code.count
+            } else if let codeBlock = markup as? CodeBlock {
+                if let loc = codeBlock.range?.lowerBound {
+                    offsets["\(loc.line):\(loc.column)"] = offset
+                }
+                offset += codeBlock.code.count
             } else {
                 for child in markup.children {
                     walk(child)

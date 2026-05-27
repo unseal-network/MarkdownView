@@ -120,13 +120,19 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
     }
     
     func visitCodeBlock(_ codeBlock: CodeBlock) -> MarkdownNodeView {
-        MarkdownNodeView {
-            MarkdownStyledCodeBlock(
-                configuration: CodeBlockStyleConfiguration(
-                    language: codeBlock.language,
-                    code: codeBlock.code
-                )
+        var config = CodeBlockStyleConfiguration(
+            language: codeBlock.language,
+            code: codeBlock.code
+        )
+        if let map = configuration.streamingTextNodeMap,
+           let loc = codeBlock.range?.lowerBound,
+           let globalOffset = map.offsets["\(loc.line):\(loc.column)"] {
+            config.attributedCode = applyStreamingGradient(
+                to: codeBlock.code, globalOffset: globalOffset, map: map
             )
+        }
+        return MarkdownNodeView {
+            MarkdownStyledCodeBlock(configuration: config)
         }
     }
     

@@ -8,10 +8,10 @@ struct StreamingBlockWrapper: View {
 
     var body: some View {
         content
-            .offset(y: appeared ? 0 : 6)
+            .offset(y: appeared ? 0 : 14)
             .opacity(appeared ? 1 : 0)
             .onAppear {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                withAnimation(.spring(response: 0.75, dampingFraction: 0.78)) {
                     appeared = true
                 }
             }
