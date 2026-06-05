@@ -86,7 +86,7 @@ fileprivate struct DefaultMarkdownTable: View {
         .font(.footnote)
         .markdownTableCellPadding(spacing)
         .padding(8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .tableCardBackground()
         .overlay(alignment: .topTrailing) {
             if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
                 Button {
@@ -118,6 +118,21 @@ fileprivate extension View {
             self.presentationDetents([.large])
         } else {
             self
+        }
+    }
+
+    @ViewBuilder
+    func tableCardBackground(cornerRadius: CGFloat = 12) -> some View {
+        if #available(iOS 26, macOS 26, *) {
+            self.glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            self
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.08), radius: 3, y: 2)
         }
     }
 }
