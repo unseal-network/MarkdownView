@@ -39,8 +39,10 @@ fileprivate struct DefaultMarkdownTable: View {
 
     @State private var isFullscreen = false
 
-    private var spacing: CGFloat {
-        showsRowSeparators ? 8 : 16
+    private var spacing: CGFloat { showsRowSeparators ? 6 : 12 }
+
+    private func zebraBackground(for index: Int) -> AnyShapeStyle {
+        index % 2 == 0 ? AnyShapeStyle(.clear) : AnyShapeStyle(.primary.opacity(0.05))
     }
 
     #if canImport(UIKit)
@@ -54,21 +56,22 @@ fileprivate struct DefaultMarkdownTable: View {
     var body: some View {
         Group {
             if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
-                ScrollView(.horizontal, showsIndicators: false) {
+                ScrollView([.horizontal, .vertical], showsIndicators: false) {
                     Grid(horizontalSpacing: 0, verticalSpacing: 0) {
                         configuration.table.header
-                        ForEach(Array(configuration.table.rows.enumerated()), id: \.offset) { (_, row) in
+                        ForEach(Array(configuration.table.rows.enumerated()), id: \.offset) { (index, row) in
                             if showsRowSeparators {
                                 Divider()
                             }
-                            row
+                            row.markdownTableRowBackgroundStyle(zebraBackground(for: index))
                         }
                     }
                     .fixedSize(horizontal: true, vertical: false)
                 }
+                .frame(maxHeight: 280)
                 .overlay(alignment: .trailing) {
                     LinearGradient(
-                        colors: [.clear, tableBackground],
+                        colors: [.clear, tableBackground.opacity(0.85)],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
@@ -80,12 +83,10 @@ fileprivate struct DefaultMarkdownTable: View {
                     .showsRowSeparators(showsRowSeparators)
             }
         }
+        .font(.footnote)
         .markdownTableCellPadding(spacing)
         .padding(8)
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(.quaternary, lineWidth: 2)
-        }
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(alignment: .topTrailing) {
             if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
                 Button {
@@ -129,8 +130,10 @@ fileprivate struct TableFullscreenSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    private var spacing: CGFloat {
-        showsRowSeparators ? 8 : 16
+    private var spacing: CGFloat { showsRowSeparators ? 6 : 12 }
+
+    private func zebraBackground(for index: Int) -> AnyShapeStyle {
+        index % 2 == 0 ? AnyShapeStyle(.clear) : AnyShapeStyle(.primary.opacity(0.05))
     }
 
     var body: some View {
@@ -155,24 +158,21 @@ fileprivate struct TableFullscreenSheet: View {
 
                 Divider()
 
-                ScrollView(.horizontal, showsIndicators: true) {
+                ScrollView([.horizontal, .vertical], showsIndicators: true) {
                     Grid(horizontalSpacing: 0, verticalSpacing: 0) {
                         configuration.table.header
-                        ForEach(Array(configuration.table.rows.enumerated()), id: \.offset) { (_, row) in
+                        ForEach(Array(configuration.table.rows.enumerated()), id: \.offset) { (index, row) in
                             if showsRowSeparators {
                                 Divider()
                             }
-                            row
+                            row.markdownTableRowBackgroundStyle(zebraBackground(for: index))
                         }
                     }
                     .fixedSize(horizontal: true, vertical: false)
                 }
+                .font(.footnote)
                 .markdownTableCellPadding(spacing)
                 .padding(8)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(.quaternary, lineWidth: 2)
-                }
                 .padding()
 
                 Spacer(minLength: 0)
