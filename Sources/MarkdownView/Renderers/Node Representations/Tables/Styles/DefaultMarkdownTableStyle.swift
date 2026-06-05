@@ -86,6 +86,7 @@ fileprivate struct DefaultMarkdownTable: View {
         .font(.footnote)
         .markdownTableCellPadding(spacing)
         .padding(8)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .tableCardBackground()
         .overlay(alignment: .topTrailing) {
             if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
@@ -173,7 +174,7 @@ fileprivate struct TableFullscreenSheet: View {
 
                 Divider()
 
-                ScrollView([.horizontal, .vertical], showsIndicators: true) {
+                ScrollView(.horizontal, showsIndicators: true) {
                     Grid(horizontalSpacing: 0, verticalSpacing: 0) {
                         configuration.table.header
                         ForEach(Array(configuration.table.rows.enumerated()), id: \.offset) { (index, row) in
@@ -189,6 +190,7 @@ fileprivate struct TableFullscreenSheet: View {
                 .markdownTableCellPadding(spacing)
                 .padding(8)
                 .padding()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
                 Spacer(minLength: 0)
             }
