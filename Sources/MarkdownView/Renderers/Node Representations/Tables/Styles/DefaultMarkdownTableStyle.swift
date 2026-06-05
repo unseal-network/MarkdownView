@@ -98,13 +98,22 @@ fileprivate struct DefaultMarkdownTable: View {
             }
         }
         .sheet(isPresented: $isFullscreen) {
-            if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
-                TableFullscreenSheet(
-                    configuration: configuration,
-                    showsRowSeparators: showsRowSeparators
-                )
-                .presentationDetents([.large])
-            }
+            TableFullscreenSheet(
+                configuration: configuration,
+                showsRowSeparators: showsRowSeparators
+            )
+            .tableSheetDetents()
+        }
+    }
+}
+
+fileprivate extension View {
+    @ViewBuilder
+    func tableSheetDetents() -> some View {
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+            self.presentationDetents([.large])
+        } else {
+            self
         }
     }
 }
