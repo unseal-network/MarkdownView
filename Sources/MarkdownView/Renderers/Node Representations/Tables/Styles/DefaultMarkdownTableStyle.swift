@@ -37,6 +37,14 @@ fileprivate struct DefaultMarkdownTable: View {
         showsRowSeparators ? 8 : 16
     }
 
+    #if canImport(UIKit)
+    private var tableBackground: Color { Color(uiColor: .systemBackground) }
+    #elseif canImport(AppKit)
+    private var tableBackground: Color { Color(nsColor: .windowBackgroundColor) }
+    #else
+    private var tableBackground: Color { .white }
+    #endif
+
     var body: some View {
         Group {
             if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
@@ -51,6 +59,15 @@ fileprivate struct DefaultMarkdownTable: View {
                         }
                     }
                     .fixedSize(horizontal: true, vertical: false)
+                }
+                .overlay(alignment: .trailing) {
+                    LinearGradient(
+                        colors: [.clear, tableBackground],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: 32)
+                    .allowsHitTesting(false)
                 }
             } else {
                 configuration.table.fallback
