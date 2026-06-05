@@ -41,10 +41,6 @@ fileprivate struct DefaultMarkdownTable: View {
 
     private var spacing: CGFloat { showsRowSeparators ? 6 : 12 }
 
-    private func zebraBackground(for index: Int) -> AnyShapeStyle {
-        index % 2 == 0 ? AnyShapeStyle(.clear) : AnyShapeStyle(.primary.opacity(0.05))
-    }
-
     #if canImport(UIKit)
     private var tableBackground: Color { Color(uiColor: .systemBackground) }
     #elseif canImport(AppKit)
@@ -63,7 +59,7 @@ fileprivate struct DefaultMarkdownTable: View {
                             if showsRowSeparators {
                                 Divider()
                             }
-                            row.markdownTableRowBackgroundStyle(zebraBackground(for: index))
+                            row
                         }
                     }
                     .fixedSize(horizontal: true, vertical: false)
@@ -148,10 +144,6 @@ fileprivate struct TableFullscreenSheet: View {
 
     private var spacing: CGFloat { showsRowSeparators ? 6 : 12 }
 
-    private func zebraBackground(for index: Int) -> AnyShapeStyle {
-        index % 2 == 0 ? AnyShapeStyle(.clear) : AnyShapeStyle(.primary.opacity(0.05))
-    }
-
     var body: some View {
         if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
             VStack(spacing: 0) {
@@ -181,7 +173,7 @@ fileprivate struct TableFullscreenSheet: View {
                             if showsRowSeparators {
                                 Divider()
                             }
-                            row.markdownTableRowBackgroundStyle(zebraBackground(for: index))
+                            row
                         }
                     }
                     .fixedSize(horizontal: true, vertical: false)
