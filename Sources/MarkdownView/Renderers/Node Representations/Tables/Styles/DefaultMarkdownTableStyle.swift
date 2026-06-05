@@ -33,6 +33,9 @@ extension MarkdownTableStyle where Self == DefaultMarkdownTableStyle {
 fileprivate struct DefaultMarkdownTable: View {
     var configuration: MarkdownTableStyleConfiguration
     var showsRowSeparators: Bool
+
+    @State private var isFullscreen = false
+
     private var spacing: CGFloat {
         showsRowSeparators ? 8 : 16
     }
@@ -79,6 +82,20 @@ fileprivate struct DefaultMarkdownTable: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(.quaternary, lineWidth: 2)
+        }
+        .overlay(alignment: .topTrailing) {
+            if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+                Button {
+                    isFullscreen = true
+                } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.caption2)
+                        .padding(5)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(6)
+            }
         }
     }
 }
