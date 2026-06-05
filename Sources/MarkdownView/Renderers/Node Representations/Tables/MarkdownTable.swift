@@ -14,6 +14,7 @@ struct MarkdownTable: View {
             .erasedToAnyView()
             .markdownTableCellStyleApplied()
             .coordinateSpace(name: MarkdownTable.CoordinateSpaceName)
+            .clipped()
     }
 }
 
