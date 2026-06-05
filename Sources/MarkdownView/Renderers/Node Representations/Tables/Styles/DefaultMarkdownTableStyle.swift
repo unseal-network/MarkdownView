@@ -97,5 +97,14 @@ fileprivate struct DefaultMarkdownTable: View {
                 .padding(6)
             }
         }
+        .sheet(isPresented: $isFullscreen) {
+            if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+                TableFullscreenSheet(
+                    configuration: configuration,
+                    showsRowSeparators: showsRowSeparators
+                )
+                .presentationDetents([.large])
+            }
+        }
     }
 }
