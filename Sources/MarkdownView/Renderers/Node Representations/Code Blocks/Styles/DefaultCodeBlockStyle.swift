@@ -58,6 +58,7 @@ struct DefaultMarkdownCodeBlock: View {
     
     var theme: CodeHighlighterTheme
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.markdownRendererConfiguration) private var rendererConfiguration
     
     @Environment(\.markdownFontGroup) private var fontGroup
     
@@ -70,7 +71,9 @@ struct DefaultMarkdownCodeBlock: View {
     var body: some View {
         ScrollView(.horizontal) {
             Group {
-                if let attributedCode {
+                if rendererConfiguration.isStreaming {
+                    Text(codeBlockConfiguration.attributedCode ?? AttributedString(codeBlockConfiguration.code))
+                } else if let attributedCode {
                     Text(attributedCode)
                 } else {
                     Text(verbatim: codeBlockConfiguration.code)
@@ -78,10 +81,18 @@ struct DefaultMarkdownCodeBlock: View {
             }
             .padding(16)
         }
-        .task(id: codeHighlightingConfiguration, immediateHighlight)
+        .task(id: codeHighlightingConfiguration) {
+            guard !rendererConfiguration.isStreaming else { return }
+            await immediateHighlight()
+        }
         .onValueChange(codeBlockConfiguration) {
+            guard !rendererConfiguration.isStreaming else {
+                codeHighlightTask?.cancel()
+                return
+            }
             debouncedHighlight()
         }
+        .onDisappear { codeHighlightTask?.cancel() }
         .lineSpacing(4)
         .font(fontGroup.codeBlock)
         .frame(maxWidth: .infinity, alignment: .leading)

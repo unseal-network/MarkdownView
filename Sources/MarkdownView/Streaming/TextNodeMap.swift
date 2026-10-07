@@ -8,10 +8,14 @@ import Markdown
 struct TextNodeMap: Equatable, Sendable {
     let totalVisibleChars: Int
     let offsets: [String: Int]
+    /// Visible-character offset at which each top-level block starts, in document order.
+    /// Lets streaming tell which blocks the reveal gradient can still touch.
+    var blockStarts: [Int] = []
 
     static func build(from document: Document) -> TextNodeMap {
         var offset = 0
         var offsets: [String: Int] = [:]
+        var blockStarts: [Int] = []
 
         func walk(_ markup: any Markup) {
             if let text = markup as? Markdown.Text {
@@ -40,7 +44,10 @@ struct TextNodeMap: Equatable, Sendable {
             }
         }
 
-        walk(document)
-        return TextNodeMap(totalVisibleChars: offset, offsets: offsets)
+        for block in document.children {
+            blockStarts.append(offset)
+            walk(block)
+        }
+        return TextNodeMap(totalVisibleChars: offset, offsets: offsets, blockStarts: blockStarts)
     }
 }

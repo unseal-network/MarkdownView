@@ -40,13 +40,17 @@ struct CmarkFirstMarkdownViewRenderer: MarkdownViewRenderer {
             .makeBody(for: content.parse(options: parseOptions))
             .erasedToAnyView()
         
-        CacheStorage.shared.addCache(
-            Cache(
-                markdownContent: content,
-                configuration: configuration,
-                renderedView: renderedView
+        // Streaming prefixes are ephemeral. Caching each prefix retains every
+        // previous AST/view tree and grows memory with token count.
+        if !configuration.isStreaming {
+            CacheStorage.shared.addCache(
+                Cache(
+                    markdownContent: content,
+                    configuration: configuration,
+                    renderedView: renderedView
+                )
             )
-        )
+        }
         
         return renderedView
     }

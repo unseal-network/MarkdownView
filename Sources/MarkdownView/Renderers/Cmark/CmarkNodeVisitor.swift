@@ -27,9 +27,17 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
     func visitDocument(_ document: Document) -> MarkdownNodeView {
         var renderer = self
         if configuration.isStreaming {
-            let nodeViews = document.children.map { child in
-                let view = renderer.visit(child)
-                return MarkdownNodeView { StreamingBlockWrapper(content: view) }
+            // Each top-level block renders in its own equatable view, so only the block(s) the
+            // reveal gradient touches re-render per frame; settled blocks are skipped entirely.
+            let starts = configuration.streamingTextNodeMap?.blockStarts ?? []
+            let total = configuration.streamingTextNodeMap?.totalVisibleChars ?? 0
+            let nodeViews = document.children.enumerated().map { index, child in
+                let start = index < starts.count ? starts[index] : 0
+                let end = index + 1 < starts.count ? starts[index + 1] : total
+                let block = StreamingBlockView(block: child, start: start, end: end, configuration: configuration)
+                return MarkdownNodeView {
+                    StreamingBlockWrapper(content: MarkdownNodeView { block.equatable() })
+                }
             }
             return MarkdownNodeView(nodeViews, layoutPolicy: .linebreak)
         }
@@ -105,7 +113,8 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
     }
     
     func visitInlineHTML(_ inlineHTML: InlineHTML) -> MarkdownNodeView {
-        MarkdownNodeView(
+        guard configuration.allowsRawHTML else { return MarkdownNodeView(inlineHTML.rawHTML) }
+        return MarkdownNodeView(
             AttributedString(
                 inlineHTML.rawHTML,
                 attributes: AttributeContainer().isHTML(true)
@@ -114,7 +123,8 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
     }
     
     func visitImage(_ image: Markdown.Image) -> MarkdownNodeView {
-        MarkdownNodeView {
+        guard configuration.allowsImages else { return MarkdownNodeView("[图片]") }
+        return MarkdownNodeView {
             MarkdownImage(image: image)
         }
     }
@@ -137,7 +147,8 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
     }
     
     func visitHTMLBlock(_ html: HTMLBlock) -> MarkdownNodeView {
-        MarkdownNodeView {
+        guard configuration.allowsRawHTML else { return MarkdownNodeView(html.rawHTML) }
+        return MarkdownNodeView {
             HTMLBlockView(html: html.rawHTML)
         }
     }

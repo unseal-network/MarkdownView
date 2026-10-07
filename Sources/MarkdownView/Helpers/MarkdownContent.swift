@@ -40,6 +40,7 @@ public struct MarkdownContent: Sendable {
     class ParsedDocumentStore: /* NSLock */ @unchecked Sendable {
         private var lock = NSLock()
         private var caches: [ParseOptions.RawValue : Document] = [:]
+        private var textMaps: [ParseOptions.RawValue : TextNodeMap] = [:]
         
         fileprivate func parse(_ rawContent: RawMarkdownContent, options: ParseOptions = ParseOptions()) -> Document {
             lock.lock()
@@ -58,6 +59,16 @@ public struct MarkdownContent: Sendable {
             return document
         }
         
+        fileprivate func textMap(_ rawContent: RawMarkdownContent, options: ParseOptions) -> TextNodeMap {
+            let document = parse(rawContent, options: options)
+            return lock.withLock {
+                if let cached = textMaps[options.rawValue] { return cached }
+                let map = TextNodeMap.build(from: document)
+                textMaps[options.rawValue] = map
+                return map
+            }
+        }
+
         var documents: LazySequence<Dictionary<ParseOptions.RawValue, Document>.Values> {
             lock.withLock {
                 caches.values.lazy
@@ -70,6 +81,23 @@ public struct MarkdownContent: Sendable {
     }
     var store: ParsedDocumentStore
     
+    /// Create immutable text content that can be prepared off the main actor.
+    public init(_ text: String) {
+        self.init(raw: .plainText(text))
+    }
+
+    /// Warm the default CommonMark AST and streaming offsets. Synchronous by design:
+    /// call from a background task, then pass the returned content to MarkdownView.
+    /// Custom block-directive parse options are still prepared on demand.
+    public func preparingForRendering() -> MarkdownContent {
+        _ = store.textMap(raw, options: ParseOptions())
+        return self
+    }
+
+    func textNodeMap(options: ParseOptions) -> TextNodeMap {
+        store.textMap(raw, options: options)
+    }
+
     internal init(raw: RawMarkdownContent) {
         self.raw = raw
         self.store = ParsedDocumentStore()

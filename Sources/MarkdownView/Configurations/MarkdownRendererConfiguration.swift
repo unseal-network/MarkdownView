@@ -22,6 +22,9 @@ struct MarkdownRendererConfiguration: Equatable, AllowingModifyThroughKeyPath, S
     
     var allowedImageRenderers: Set<String> = ["https", "http"]
     var allowedBlockDirectiveRenderers: Set<String> = []
+    var allowsRawHTML: Bool = true
+    var allowsImages: Bool = true
+    var streamingHapticsEnabled: Bool = false
     var isStreaming: Bool = false
     var streamingTextNodeMap: TextNodeMap? = nil
     var streamingRevealedCount: Int = .max

@@ -1,26 +1,27 @@
 import SwiftUI
 import Markdown
 
-/// Drives the streaming render pipeline with buffered character reveal.
+/// Drives the streaming render pipeline with a trailing fade.
 ///
-/// Text arrives in chunks but is revealed character-by-character. On each
-/// content change `.task(id:)` advances `revealedCount` immediately (before
-/// any `await`) so that even rapid-fire cancellations make progress. A
-/// follow-up loop catches up if there is a large backlog.
+/// The fade tail moves only when content arrives: each update is a render anyway, so the reveal
+/// adds no frames of its own. (A 30 fps reveal loop rebuilt and re-laid out the active block's
+/// attributed text every frame — on device that was most of the dropped frames while streaming.)
+/// When updates pause, one settle step brings the tail to full opacity.
 @MainActor
 struct StreamingMarkdownView: View {
     let content: MarkdownContent
     let configuration: MarkdownRendererConfiguration
 
-    @State private var revealedCount: Int = 0
-    @State private var targetCount: Int = 0
+    /// The content whose tail has settled to full opacity after a pause.
+    @State private var settledContent: MarkdownContent?
     @State private var lastHapticCount: Int = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let baseCharsPerSecond: Double = 40
+    /// Quiet time after the last update before the tail settles.
+    private static let settleDelay: UInt64 = 220_000_000
 
     var body: some View {
-        let document = content.parse(options: parseOptions)
-        let textMap = TextNodeMap.build(from: document)
+        let textMap = content.textNodeMap(options: parseOptions)
         let config = streamingConfig(textMap: textMap)
 
         CmarkFirstMarkdownViewRenderer()
@@ -34,43 +35,26 @@ struct StreamingMarkdownView: View {
     private func streamingConfig(textMap: TextNodeMap) -> MarkdownRendererConfiguration {
         var config = configuration
         config.streamingTextNodeMap = textMap
-        config.streamingRevealedCount = revealedCount
+        // Derived, not stored: a stored cursor updated after each chunk rendered every chunk twice.
+        let total = textMap.totalVisibleChars
+        config.streamingRevealedCount = reduceMotion || settledContent == content
+            ? total + configuration.streamingWindowSize : total
         return config
     }
 
     private func updateAndReveal() async {
-        let document = content.parse(options: parseOptions)
-        let total = TextNodeMap.build(from: document).totalVisibleChars
-
-        if targetCount == 0, total > 0 {
-            revealedCount = max(0, total - 1)
-        }
-        targetCount = total
-
-        // Advance BEFORE any await — survives rapid task cancellation
-        advanceReveal()
-        triggerHaptic()
-
-        // Catch up remaining backlog at ~60fps
-        while revealedCount < targetCount {
-            try? await Task.sleep(nanoseconds: 16_000_000)
-            guard !Task.isCancelled else { return }
-            advanceReveal()
-            triggerHaptic()
-        }
+        guard !reduceMotion else { return }
+        // The newest characters sit faintest at the tail; the next update brightens them.
+        triggerHaptic(total: content.textNodeMap(options: parseOptions).totalVisibleChars)
+        try? await Task.sleep(nanoseconds: Self.settleDelay)
+        guard !Task.isCancelled else { return }
+        settledContent = content
     }
 
-    private func advanceReveal() {
-        let backlog = targetCount - revealedCount
-        guard backlog > 0 else { return }
-        let chars = max(1, backlog / 5)
-        revealedCount = min(targetCount, revealedCount + chars)
-    }
-
-    private func triggerHaptic() {
+    private func triggerHaptic(total: Int) {
         #if os(iOS)
-        if revealedCount - lastHapticCount >= 5 {
-            lastHapticCount = revealedCount
+        if configuration.streamingHapticsEnabled, total - lastHapticCount >= 5 {
+            lastHapticCount = total
             UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.7)
         }
         #endif
