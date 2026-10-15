@@ -50,13 +50,7 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
     }
     
     func descendInto(_ markup: any Markup) -> MarkdownNodeView {
-        var nodeViews = [MarkdownNodeView]()
-        for child in markup.children {
-            var renderer = self
-            let nodeView = renderer.visit(child)
-            nodeViews.append(nodeView)
-        }
-        return MarkdownNodeView(nodeViews)
+        MarkdownNodeView(visitInlineChildren(of: markup))
     }
     
     func visitText(_ text: Markdown.Text) -> MarkdownNodeView {
@@ -202,12 +196,7 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
     }
     
     func visitTableCell(_ cell: Markdown.Table.Cell) -> MarkdownNodeView {
-        var cellViews = [MarkdownNodeView]()
-        for child in cell.children {
-            var renderer = CmarkNodeVisitor(configuration: configuration)
-            let cellView = renderer.visit(child)
-            cellViews.append(cellView)
-        }
+        let cellViews = CmarkNodeVisitor(configuration: configuration).visitInlineChildren(of: cell)
         return MarkdownNodeView(
             cellViews,
             alignment: cell.horizontalAlignment
@@ -226,46 +215,43 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
     
     func visitEmphasis(_ emphasis: Markdown.Emphasis) -> MarkdownNodeView {
         var attributedString = AttributedString()
-        for child in emphasis.children {
-            var renderer = self
-            guard let text = renderer.visit(child).asAttributedString else { continue }
-            let intent = text.inlinePresentationIntent ?? []
-            attributedString += text.mergingAttributes(
-                AttributeContainer()
-                    .inlinePresentationIntent(intent.union(.emphasized))
-            )
+        for nodeView in visitInlineChildren(of: emphasis) {
+            guard let text = nodeView.asAttributedString else { continue }
+            attributedString += Self.adding(.emphasized, to: text)
         }
+        InlineSpanStyle.slantIdeographs(&attributedString)
         return MarkdownNodeView(attributedString)
     }
     
     func visitStrong(_ strong: Strong) -> MarkdownNodeView {
         var attributedString = AttributedString()
-        for child in strong.children {
-            var renderer = self
-            guard let text = renderer.visit(child).asAttributedString else { continue }
-            let intent = text.inlinePresentationIntent ?? []
-            attributedString += text.mergingAttributes(
-                AttributeContainer()
-                    .inlinePresentationIntent(intent.union(.stronglyEmphasized))
-            )
+        for nodeView in visitInlineChildren(of: strong) {
+            guard let text = nodeView.asAttributedString else { continue }
+            attributedString += Self.adding(.stronglyEmphasized, to: text)
         }
         return MarkdownNodeView(attributedString)
     }
     
     func visitStrikethrough(_ strikethrough: Strikethrough) -> MarkdownNodeView {
         var attributedString = AttributedString()
-        for child in strikethrough.children {
-            var renderer = self
-            guard let text = renderer.visit(child).asAttributedString else { continue }
-            let intent = text.inlinePresentationIntent ?? []
-            attributedString += text.mergingAttributes(
-                AttributeContainer()
-                    .inlinePresentationIntent(intent.union(.strikethrough))
-            )
+        for nodeView in visitInlineChildren(of: strikethrough) {
+            guard let text = nodeView.asAttributedString else { continue }
+            attributedString += Self.adding(.strikethrough, to: text)
         }
         return MarkdownNodeView(attributedString)
     }
     
+    /// `text` with `intent` added to each run's own. A child mixing styles (plain text and an
+    /// emphasized part) has no single intent for the whole string, so writing one over all of it
+    /// would drop the inner styles: bold around "a *b ~~c~~*" would leave only bold.
+    private static func adding(_ intent: InlinePresentationIntent, to text: AttributedString) -> AttributedString {
+        var text = text
+        for run in text.runs {
+            text[run.range].inlinePresentationIntent = (run.inlinePresentationIntent ?? []).union(intent)
+        }
+        return text
+    }
+
     // MARK: - Streaming gradient
 
     private func applyStreamingGradient(to text: String, globalOffset: Int, map: TextNodeMap) -> AttributedString {
@@ -319,6 +305,9 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
         else { return descendInto(link) }
         
         let nodeView = descendInto(link)
+        if let pills = configuration.linkPills, pills.matches(url), let label = nodeView.asAttributedString {
+            return MarkdownNodeView(pills.pill(label, url: url))
+        }
         return if let attributedString = nodeView.asAttributedString {
             MarkdownNodeView(
                 attributedString.mergingAttributes(

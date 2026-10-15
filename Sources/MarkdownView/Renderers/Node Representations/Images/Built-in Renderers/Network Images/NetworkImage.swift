@@ -8,6 +8,8 @@ struct NetworkImage: View {
     @State private var svg: SVG?
     @State private var isSupported = true
     @Environment(\.displayScale) private var scale
+    /// SVG is drawn in a web view: only where raw HTML may be (not for untrusted chat content).
+    @Environment(\.markdownRendererConfiguration.allowsRawHTML) private var allowsWebContent
     
     var body: some View {
         VStack {
@@ -17,6 +19,8 @@ struct NetworkImage: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(maxWidth: max(imageSize.width, imageSize.height))
                     .task { await cacheFetchedImage(image) }
+            } else if svg != nil, !allowsWebContent {
+                ImagePlaceholder()
             } else if let svg {
                 #if os(iOS) || os(macOS)
                 SVGView(svg: svg)

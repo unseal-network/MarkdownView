@@ -15,6 +15,8 @@ struct MarkdownRendererConfiguration: Equatable, AllowingModifyThroughKeyPath, S
     var math: Math = Math()
     
     var linkTintColor: Color = .accentColor
+    /// Links drawn as pills (`markdownLinkPills`); nil: none are.
+    var linkPills: MarkdownLinkPills? = nil
     var inlineCodeTintColor: Color = .accentColor
     var blockQuoteTintColor: Color = .accentColor
     

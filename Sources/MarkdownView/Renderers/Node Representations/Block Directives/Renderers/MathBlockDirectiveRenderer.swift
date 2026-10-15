@@ -7,9 +7,6 @@
 
 import Foundation
 import SwiftUI
-#if canImport(LaTeXSwiftUI)
-import LaTeXSwiftUI
-#endif
 
 struct MathBlockDirectiveRenderer: BlockDirectiveRenderer {
     func makeBody(configuration: Configuration) -> some View {
@@ -21,42 +18,38 @@ struct MathBlockDirectiveRenderer: BlockDirectiveRenderer {
     }
 }
 
+/// A display formula, centred; narrower than its width, it scales down to fit rather than
+/// scrolling (the streaming renderer does the same, so a bubble does not change when it ends).
 fileprivate struct DisplayMath: View {
     var mathIdentifier: UUID
-    @Environment(\.markdownFontGroup.displayMath) private var font
     @Environment(\.markdownRendererConfiguration.math) private var math
+    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 17
     private var latexMath: String? {
         math.displayMathStorage?[mathIdentifier]
     }
 
     var body: some View {
-        if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) {
-            ViewThatFits(in: .horizontal) {
-                latex
-                ScrollView(.horizontal) {
-                    latex
-                }
+        if let latexMath {
+            #if canImport(SwiftMath) && canImport(UIKit)
+            if let figure = MathRasterizer.figure(latexMath, display: true, fontSize: fontSize) {
+                Image(uiImage: figure.image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: figure.image.size.width)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel(latexMath)
+            } else {
+                source(latexMath)
             }
-        } else {
-            ScrollView(.horizontal) {
-                latex
-            }
+            #else
+            source(latexMath)
+            #endif
         }
     }
-    
-    @ViewBuilder
-    private var latex: some View {
-        #if canImport(LaTeXSwiftUI)
-        if let latexMath {
-            LaTeX(latexMath)
-                .renderingStyle(.empty)
-                .ignoreStringFormatting()
-                .blockMode(.blockText)
-                .font(font)
-                .frame(maxWidth: .infinity)
-        }
-        #else
-        EmptyView()
-        #endif
+
+    private func source(_ latex: String) -> some View {
+        Text(verbatim: "$$\(latex)$$")
+            .font(.system(.callout, design: .monospaced))
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

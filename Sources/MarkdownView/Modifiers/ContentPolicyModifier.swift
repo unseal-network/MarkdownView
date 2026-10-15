@@ -12,4 +12,10 @@ extension View {
     public func allowImages(_ allowed: Bool) -> some View {
         transformEnvironment(\.markdownRendererConfiguration) { $0.allowsImages = allowed }
     }
+
+    /// The URL schemes images may load from (by default `https` and `http`); others show their
+    /// placeholder. Chat content: `["https"]`.
+    public func imageURLSchemes(_ schemes: Set<String>) -> some View {
+        transformEnvironment(\.markdownRendererConfiguration) { $0.allowedImageRenderers = schemes }
+    }
 }

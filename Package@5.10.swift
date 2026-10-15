@@ -17,7 +17,8 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/swiftlang/swift-markdown.git", from: "0.5.0"),
         .package(url: "https://github.com/raspu/Highlightr.git", from: "2.2.1"),
-        .package(url: "https://github.com/colinc86/LaTeXSwiftUI.git", from: "1.4.1"),
+        // Math typeset natively (CoreText), drawn synchronously: no JavaScript, no async height.
+        .package(url: "https://github.com/mgriebling/SwiftMath.git", from: "1.7.3"),
     ],
     targets: [
         .target(
@@ -33,8 +34,8 @@ let package = Package(
                     condition: .when(platforms: [.iOS, .macOS])
                 ),
                 .product(
-                    name: "LaTeXSwiftUI",
-                    package: "LaTeXSwiftUI"
+                    name: "SwiftMath",
+                    package: "SwiftMath"
                 ),
             ]
         ),
