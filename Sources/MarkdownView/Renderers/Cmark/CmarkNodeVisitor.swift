@@ -24,7 +24,7 @@ struct CmarkNodeVisitor: @preconcurrency MarkupVisitor {
             .environment(\.markdownRendererConfiguration, configuration)
     }
 
-    func visitDocument(_ document: Document) -> MarkdownNodeView {
+    func visitDocument(_ document: Markdown.Document) -> MarkdownNodeView {
         var renderer = self
         if configuration.isStreaming {
             // Each top-level block renders in its own equatable view, so only the block(s) the
