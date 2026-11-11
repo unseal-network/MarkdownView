@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 extension View {
     /// Underlines the link under the pointer (a link that wraps over lines is underlined on all of them). Needs
@@ -24,16 +27,26 @@ struct MarkdownLinkTextAttribute: TextAttribute {
 struct MarkdownLinkUnderlineRenderer: TextRenderer {
     var pointer: CGPoint?
     var color: Color
+    /// Told whether the pointer is on a link (only when that changes).
+    var onOverLink: @Sendable (Bool) -> Void
+    var last: LastOver
+
+    final class LastOver: @unchecked Sendable { var value = false }
 
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
-        guard let pointer else { return }
         var hovered: Int?
-        for line in layout {
-            for run in line {
-                if let link = run[MarkdownLinkTextAttribute.self], run.typographicBounds.rect.contains(pointer) {
-                    hovered = link.id
+        if let pointer {
+            for line in layout {
+                for run in line {
+                    if let link = run[MarkdownLinkTextAttribute.self], run.typographicBounds.rect.contains(pointer) {
+                        hovered = link.id
+                    }
                 }
             }
+        }
+        if last.value != (hovered != nil) {
+            last.value = hovered != nil
+            onOverLink(hovered != nil)
         }
         guard let hovered else { return }
         for line in layout {
@@ -56,19 +69,31 @@ struct MarkdownHoverLinkText: View {
     var string: AttributedString
     var color: Color
     @State private var pointer: CGPoint?
+    @State private var overLink = false
+    @State private var last = MarkdownLinkUnderlineRenderer.LastOver()
 
     var body: some View {
         Text(string)
             .overlay {
                 Self.marked(string)
                     .foregroundStyle(.clear)
-                    .textRenderer(MarkdownLinkUnderlineRenderer(pointer: pointer, color: color))
+                    .textRenderer(MarkdownLinkUnderlineRenderer(
+                        pointer: pointer, color: color,
+                        onOverLink: { over in DispatchQueue.main.async { overLink = over } }, last: last))
                     .textSelection(.disabled)
                     .allowsHitTesting(false)
             }
+            #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+            .onChange(of: overLink) { if overLink { NSCursor.pointingHand.set() } else { NSCursor.iBeam.set() } }
+            #endif
             .onContinuousHover { phase in
                 switch phase {
-                case .active(let location): pointer = location
+                case .active(let location):
+                    pointer = location
+                    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+                    // The selectable text under this sets its own I-beam; a hand is set over it on each move.
+                    if overLink { NSCursor.pointingHand.set() }
+                    #endif
                 case .ended: pointer = nil
                 }
             }
