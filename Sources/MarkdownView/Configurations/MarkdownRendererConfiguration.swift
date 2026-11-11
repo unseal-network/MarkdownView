@@ -17,6 +17,7 @@ struct MarkdownRendererConfiguration: Equatable, AllowingModifyThroughKeyPath, S
     var linkTintColor: Color = .accentColor
     /// Links drawn as pills (`markdownLinkPills`); nil: none are.
     var linkPills: MarkdownLinkPills? = nil
+    var underlinesHoveredLinks = false
     var inlineCodeTintColor: Color = .accentColor
     var blockQuoteTintColor: Color = .accentColor
     

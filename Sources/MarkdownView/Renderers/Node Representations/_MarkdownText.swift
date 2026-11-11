@@ -14,6 +14,8 @@ struct _MarkdownText: View {
     var text: AttributedString
     @State private var attributedString: AttributedString?
     @Environment(\.markdownRendererConfiguration.linkPills) private var linkPills
+    @Environment(\.markdownRendererConfiguration.underlinesHoveredLinks) private var underlinesHoveredLinks
+    @Environment(\.markdownRendererConfiguration.linkTintColor) private var linkTintColor
     /// Inline formulas at the body size, following Dynamic Type.
     @ScaledMetric(relativeTo: .body) private var mathFontSize: CGFloat = 17
 
@@ -61,6 +63,9 @@ struct _MarkdownText: View {
         if #available(iOS 18, macOS 15, tvOS 18, watchOS 11, visionOS 2, *), let linkPills,
            shown.runs.contains(where: { $0[MarkdownPillAttribute.self] == true }) {
             Self.pillText(shown).textRenderer(MarkdownPillRenderer(fill: linkPills.fill))
+        } else if #available(iOS 18, macOS 15, tvOS 18, watchOS 11, visionOS 2, *), underlinesHoveredLinks,
+                  shown.runs.contains(where: { $0.link != nil }) {
+            MarkdownHoverLinkText(string: shown, color: linkTintColor)
         } else {
             Text(shown)
         }
